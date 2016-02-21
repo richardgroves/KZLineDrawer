@@ -136,6 +136,20 @@ typedef struct {
 	return self;
 }
 
+- (void)contentSizeChanged
+{
+	[super contentSizeChanged];
+	
+	[self removeChild:renderTexture];
+	renderTexture = [[CCRenderTexture alloc] initWithWidth:self.contentSizeInPoints.width height:self.contentSizeInPoints.height pixelFormat:CCTexturePixelFormat_RGBA8888];
+	renderTexture.positionType = CCPositionTypeNormalized;
+	renderTexture.anchorPoint = ccp(0, 0);
+	renderTexture.position = ccp(0.5, 0.5);
+	
+	[renderTexture clear:1.0 g:1.0 b:1.0 a:0.0];
+	[self addChild:renderTexture];
+}
+
 #pragma mark - Handling points
 - (void)startNewLineFrom:(CGPoint)newPoint withSize:(CGFloat)aSize
 {
@@ -461,37 +475,43 @@ typedef struct {
 
 - (void)handlePanGesture:(UIPanGestureRecognizer *)panGestureRecognizer
 {
-	const CGPoint point = [[CCDirector sharedDirector] convertToGL:[panGestureRecognizer locationInView:panGestureRecognizer.view]];
+	CGPoint pointUI = [panGestureRecognizer locationInView:panGestureRecognizer.view];
+	CGPoint pointGL = [[CCDirector sharedDirector] convertToGL:pointUI];
 	
-	if (panGestureRecognizer.state == UIGestureRecognizerStateBegan) {
-		[points removeAllObjects];
-		[velocities removeAllObjects];
+	if ([self hitTestWithWorldPos:pointGL]) // Did the touch hit this node
+	{
+		CGPoint point = [self convertToNodeSpace:pointGL];
 		
-		CGFloat size = [self extractSize:panGestureRecognizer];
-		
-		[self startNewLineFrom:point withSize:size];
-		[self addPoint:point withSize:size];
-		[self addPoint:point withSize:size];
-	}
-	
-	if (panGestureRecognizer.state == UIGestureRecognizerStateChanged) {
-		//! skip points that are too close
-		CGFloat eps = 1.5;
-		if (points.count > 0) {
-			CGFloat length = ccpLength(ccpSub(points.lastObject.pos, point));
+		if (panGestureRecognizer.state == UIGestureRecognizerStateBegan) {
+			[points removeAllObjects];
+			[velocities removeAllObjects];
 			
-			if (length < eps) {
-				return;
-			}
+			CGFloat size = [self extractSize:panGestureRecognizer];
+			
+			[self startNewLineFrom:point withSize:size];
+			[self addPoint:point withSize:size];
+			[self addPoint:point withSize:size];
 		}
-		CGFloat size = [self extractSize:panGestureRecognizer];
-		[self addPoint:point withSize:size];
-	}
-	
-	if (panGestureRecognizer.state == UIGestureRecognizerStateEnded) {
-		CGFloat size = [self extractSize:panGestureRecognizer];
-		[self endLineAt:point withSize:size];
-		forceFraction = -1; // In case we go from using a force device to a non-force one
+		
+		if (panGestureRecognizer.state == UIGestureRecognizerStateChanged) {
+			//! skip points that are too close
+			CGFloat eps = 1.5;
+			if (points.count > 0) {
+				CGFloat length = ccpLength(ccpSub(points.lastObject.pos, point));
+				
+				if (length < eps) {
+					return;
+				}
+			}
+			CGFloat size = [self extractSize:panGestureRecognizer];
+			[self addPoint:point withSize:size];
+		}
+		
+		if (panGestureRecognizer.state == UIGestureRecognizerStateEnded) {
+			CGFloat size = [self extractSize:panGestureRecognizer];
+			[self endLineAt:point withSize:size];
+			forceFraction = -1; // In case we go from using a force device to a non-force one
+		}
 	}
 }
 
